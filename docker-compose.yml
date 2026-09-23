@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: forms-app-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: forms_app
+      POSTGRES_PASSWORD: forms_app
+      POSTGRES_DB: forms_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - forms_app_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forms_app -d forms_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  forms_app_pgdata:

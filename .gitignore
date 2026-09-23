@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+*.log
+.env
+.env.local
+.DS_Store
+.pnpm-store/
+apps/api/prisma/generated/
+apps/api/src/generated/
+*.tsbuildinfo
