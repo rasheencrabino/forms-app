@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Mirrors packages/shared QuestionTypeEnum exactly — that package is the
+// single source of truth; this enum copies it (see project convention:
+// Prisma enums must mirror domain constants, never invent values here).
+enum QuestionType {
+  SHORT_TEXT
+  LONG_TEXT
+  DATE
+  DROPDOWN
+  MULTI_SELECT
+  MULTIPLE_CHOICE
+  CHECKBOXES
+  LINEAR_SCALE
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  forms Form[]
+
+  @@map("users")
+}
+
+model Form {
+  id          String  @id @default(uuid())
+  ownerId     String
+  owner       User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  slug        String  @unique
+  isPublished Boolean @default(false)
+
+  // Webhook config lives directly on the form: one webhook per form is all
+  // the spec requires, so a join table would be unwarranted indirection.
+  webhookUrl    String?
+  webhookSecret String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions         Question[]
+  responses         Response[]
+  webhookDeliveries WebhookDelivery[]
+
+  @@index([ownerId])
+  @@map("forms")
+}
+
+model Question {
+  id       String       @id @default(uuid())
+  formId   String
+  form     Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  label    String
+  type     QuestionType
+  order    Int
+  required Boolean      @default(false)
+
+  // Per-type config (options list, or linear-scale min/max/labels). Shaped
+  // and validated by packages/shared's QuestionInputSchema discriminated
+  // union before it ever reaches this column — Postgres just stores the
+  // already-validated JSON.
+  config Json @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([formId, order])
+  @@map("questions")
+}
+
+model Response {
+  id     String @id @default(uuid())
+  formId String
+  form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
+  email  String
+
+  // Full snapshot of every answered question as it existed at submission
+  // time: [{ questionId, label, type, config, required, value }, ...].
+  // This is the mechanism that keeps a response readable after its form's
+  // questions are edited or deleted — the response never joins back to the
+  // live `questions` table to render. See README "Design decisions".
+  answers Json
+
+  submittedAt DateTime @default(now())
+
+  webhookDeliveries WebhookDelivery[]
+
+  @@index([formId, submittedAt])
+  @@map("responses")
+}
+
+model WebhookDelivery {
+  id         String   @id @default(uuid())
+  formId     String
+  form       Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  responseId String
+  response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  url          String
+  statusCode   Int?
+  errorMessage String?
+  attemptedAt  DateTime @default(now())
+
+  @@index([formId, attemptedAt])
+  @@map("webhook_deliveries")
+}
