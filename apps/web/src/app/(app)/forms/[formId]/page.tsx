@@ -1,16 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type Announcements,
+  type DragEndEvent,
+  type UniqueIdentifier,
+} from "@dnd-kit/core";
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import type { FormDto } from "@forms-app/shared";
 import { useAuth } from "@/lib/auth-context";
 import { api, ApiError } from "@/lib/api-client";
 import { moveItem } from "@/lib/move-item";
-import { QuestionEditor, type QuestionEditorValue } from "@/components/QuestionEditor";
+import type { QuestionEditorValue } from "@/components/QuestionEditor";
+import { SortableQuestion } from "@/components/SortableQuestion";
 import { AddQuestionForm } from "@/components/AddQuestionForm";
 
 const WEB_BASE_URL = typeof window !== "undefined" ? window.location.origin : "";
+
+function sortedQuestionIds(questions: FormDto["questions"]): string[] {
+  return [...questions].sort((a, b) => a.order - b.order).map((q) => q.id);
+}
 
 export default function FormBuilderPage() {
   const { formId } = useParams<{ formId: string }>();
@@ -24,6 +41,12 @@ export default function FormBuilderPage() {
   const [savingMeta, setSavingMeta] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [reordering, setReordering] = useState(false);
+
+  const dndContextId = useId();
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   async function reload() {
     if (!token) return;
@@ -108,12 +131,34 @@ export default function FormBuilderPage() {
 
   async function onMoveQuestion(questionId: string, direction: "up" | "down") {
     if (!form) return;
-    const ordered = [...form.questions].sort((a, b) => a.order - b.order).map((q) => q.id);
+    const ordered = sortedQuestionIds(form.questions);
     const idx = ordered.indexOf(questionId);
     const target = direction === "up" ? idx - 1 : idx + 1;
     if (target < 0 || target >= ordered.length) return;
     await applyReorder(moveItem(ordered, idx, target));
   }
+
+  function onDragEnd({ active, over }: DragEndEvent) {
+    if (!form || !over || active.id === over.id) return;
+    const ordered = sortedQuestionIds(form.questions);
+    void applyReorder(moveItem(ordered, ordered.indexOf(String(active.id)), ordered.indexOf(String(over.id))));
+  }
+
+  // Screen reader announcements by position; dnd-kit's defaults would read out question UUIDs.
+  function positionOf(id: UniqueIdentifier): number {
+    return form ? sortedQuestionIds(form.questions).indexOf(String(id)) + 1 : 0;
+  }
+
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => `Picked up question ${positionOf(active.id)}.`,
+    onDragOver: ({ active, over }) =>
+      over ? `Question ${positionOf(active.id)} is over position ${positionOf(over.id)}.` : undefined,
+    onDragEnd: ({ active, over }) =>
+      over
+        ? `Question ${positionOf(active.id)} moved to position ${positionOf(over.id)}.`
+        : `Question ${positionOf(active.id)} dropped.`,
+    onDragCancel: ({ active }) => `Moving question ${positionOf(active.id)} was cancelled.`,
+  };
 
   if (error && !form) {
     return (
@@ -183,19 +228,29 @@ export default function FormBuilderPage() {
 
       <h2>Questions</h2>
       {sortedQuestions.length === 0 && <p className="subtitle">No questions yet — add one below.</p>}
-      {sortedQuestions.map((question, idx) => (
-        <QuestionEditor
-          key={question.id}
-          question={question}
-          position={idx + 1}
-          isFirst={idx === 0}
-          isLast={idx === sortedQuestions.length - 1}
-          moveDisabled={reordering}
-          onSave={(value) => onSaveQuestion(question.id, value)}
-          onDelete={() => onDeleteQuestion(question.id)}
-          onMove={(direction) => onMoveQuestion(question.id, direction)}
-        />
-      ))}
+      <DndContext
+        id={dndContextId}
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={onDragEnd}
+        accessibility={{ announcements }}
+      >
+        <SortableContext items={sortedQuestions.map((q) => q.id)} strategy={verticalListSortingStrategy}>
+          {sortedQuestions.map((question, idx) => (
+            <SortableQuestion
+              key={question.id}
+              question={question}
+              position={idx + 1}
+              isFirst={idx === 0}
+              isLast={idx === sortedQuestions.length - 1}
+              moveDisabled={reordering}
+              onSave={(value) => onSaveQuestion(question.id, value)}
+              onDelete={() => onDeleteQuestion(question.id)}
+              onMove={(direction) => onMoveQuestion(question.id, direction)}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
 
       <AddQuestionForm onAdd={onAddQuestion} />
     </main>

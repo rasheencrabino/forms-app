@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Question, QuestionType } from "@forms-app/shared";
 import { OptionsEditor } from "./OptionsEditor";
 import {
@@ -23,6 +23,7 @@ interface QuestionEditorProps {
   isFirst: boolean;
   isLast: boolean;
   moveDisabled: boolean;
+  dragHandle?: ReactNode;
   onSave: (value: QuestionEditorValue) => Promise<void>;
   onDelete: () => Promise<void>;
   onMove: (direction: "up" | "down") => Promise<void>;
@@ -34,6 +35,7 @@ export function QuestionEditor({
   isFirst,
   isLast,
   moveDisabled,
+  dragHandle,
   onSave,
   onDelete,
   onMove,
@@ -82,6 +84,7 @@ export function QuestionEditor({
     <div className="question-card" data-testid={`question-card-${question.id}`}>
       <div className="question-card__header">
         <div className="question-card__order">
+          {dragHandle}
           <button
             className="btn btn--secondary btn--sm"
             disabled={isFirst || saving || moveDisabled}
