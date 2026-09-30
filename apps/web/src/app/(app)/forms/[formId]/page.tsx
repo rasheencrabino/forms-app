@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import type { FormDto } from "@forms-app/shared";
 import { useAuth } from "@/lib/auth-context";
 import { api, ApiError } from "@/lib/api-client";
+import { moveItem } from "@/lib/move-item";
 import { QuestionEditor, type QuestionEditorValue } from "@/components/QuestionEditor";
 import { AddQuestionForm } from "@/components/AddQuestionForm";
 
@@ -89,10 +90,9 @@ export default function FormBuilderPage() {
     if (!token || !form) return;
     const ordered = [...form.questions].sort((a, b) => a.order - b.order).map((q) => q.id);
     const idx = ordered.indexOf(questionId);
-    const swapWith = direction === "up" ? idx - 1 : idx + 1;
-    if (swapWith < 0 || swapWith >= ordered.length) return;
-    [ordered[idx], ordered[swapWith]] = [ordered[swapWith], ordered[idx]];
-    await api.reorderQuestions(token, formId, ordered);
+    const target = direction === "up" ? idx - 1 : idx + 1;
+    if (target < 0 || target >= ordered.length) return;
+    await api.reorderQuestions(token, formId, moveItem(ordered, idx, target));
     await reload();
   }
 
