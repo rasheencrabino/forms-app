@@ -23,6 +23,7 @@ export default function FormBuilderPage() {
   const [description, setDescription] = useState("");
   const [savingMeta, setSavingMeta] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [reordering, setReordering] = useState(false);
 
   async function reload() {
     if (!token) return;
@@ -86,14 +87,32 @@ export default function FormBuilderPage() {
     await reload();
   }
 
-  async function onMoveQuestion(questionId: string, direction: "up" | "down") {
+  async function applyReorder(nextIds: string[]) {
     if (!token || !form) return;
+    const previousQuestions = form.questions;
+    setError(null);
+    setReordering(true);
+    setForm((prev) =>
+      prev ? { ...prev, questions: prev.questions.map((q) => ({ ...q, order: nextIds.indexOf(q.id) })) } : prev,
+    );
+    try {
+      const questions = await api.reorderQuestions(token, formId, nextIds);
+      setForm((prev) => (prev ? { ...prev, questions } : prev));
+    } catch (err) {
+      setForm((prev) => (prev ? { ...prev, questions: previousQuestions } : prev));
+      setError(err instanceof ApiError ? err.message : "Failed to reorder questions");
+    } finally {
+      setReordering(false);
+    }
+  }
+
+  async function onMoveQuestion(questionId: string, direction: "up" | "down") {
+    if (!form) return;
     const ordered = [...form.questions].sort((a, b) => a.order - b.order).map((q) => q.id);
     const idx = ordered.indexOf(questionId);
     const target = direction === "up" ? idx - 1 : idx + 1;
     if (target < 0 || target >= ordered.length) return;
-    await api.reorderQuestions(token, formId, moveItem(ordered, idx, target));
-    await reload();
+    await applyReorder(moveItem(ordered, idx, target));
   }
 
   if (error && !form) {
@@ -171,6 +190,7 @@ export default function FormBuilderPage() {
           position={idx + 1}
           isFirst={idx === 0}
           isLast={idx === sortedQuestions.length - 1}
+          moveDisabled={reordering}
           onSave={(value) => onSaveQuestion(question.id, value)}
           onDelete={() => onDeleteQuestion(question.id)}
           onMove={(direction) => onMoveQuestion(question.id, direction)}
