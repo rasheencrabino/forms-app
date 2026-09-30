@@ -324,6 +324,13 @@ tr:hover td {
   flex-direction: column;
   gap: 0.15rem;
 }
+.question-card__handle {
+  cursor: grab;
+  touch-action: none;
+}
+.question-card__handle:active {
+  cursor: grabbing;
+}
 .question-card__body {
   flex: 1;
   display: grid;

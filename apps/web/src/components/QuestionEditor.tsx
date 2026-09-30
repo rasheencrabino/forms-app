@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Question, QuestionType } from "@forms-app/shared";
 import { OptionsEditor } from "./OptionsEditor";
 import {
@@ -22,12 +22,24 @@ interface QuestionEditorProps {
   position: number;
   isFirst: boolean;
   isLast: boolean;
+  moveDisabled: boolean;
+  dragHandle?: ReactNode;
   onSave: (value: QuestionEditorValue) => Promise<void>;
   onDelete: () => Promise<void>;
   onMove: (direction: "up" | "down") => Promise<void>;
 }
 
-export function QuestionEditor({ question, position, isFirst, isLast, onSave, onDelete, onMove }: QuestionEditorProps) {
+export function QuestionEditor({
+  question,
+  position,
+  isFirst,
+  isLast,
+  moveDisabled,
+  dragHandle,
+  onSave,
+  onDelete,
+  onMove,
+}: QuestionEditorProps) {
   const [type, setType] = useState<QuestionType>(question.type);
   const [label, setLabel] = useState(question.label);
   const [required, setRequired] = useState(question.required);
@@ -72,10 +84,19 @@ export function QuestionEditor({ question, position, isFirst, isLast, onSave, on
     <div className="question-card" data-testid={`question-card-${question.id}`}>
       <div className="question-card__header">
         <div className="question-card__order">
-          <button className="btn btn--secondary btn--sm" disabled={isFirst || saving} onClick={() => onMove("up")}>
+          {dragHandle}
+          <button
+            className="btn btn--secondary btn--sm"
+            disabled={isFirst || saving || moveDisabled}
+            onClick={() => onMove("up")}
+          >
             ↑
           </button>
-          <button className="btn btn--secondary btn--sm" disabled={isLast || saving} onClick={() => onMove("down")}>
+          <button
+            className="btn btn--secondary btn--sm"
+            disabled={isLast || saving || moveDisabled}
+            onClick={() => onMove("down")}
+          >
             ↓
           </button>
         </div>
